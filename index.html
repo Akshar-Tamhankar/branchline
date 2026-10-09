@@ -381,6 +381,10 @@ body{background:radial-gradient(ellipse 80% 70% at 40% 20%,#132019,var(--panel) 
 .st .plus:hover circle{fill:var(--c)}
 .st .plus:hover path{stroke:#07100B}
 #map.dragging .st,#map.dragging .edge{opacity:.2}
+#map .st .nm{font-size:calc(13.5px * var(--nz,1))}
+#map .st .bul{transform:translate(calc(-30px - var(--bw,0) * 1px * var(--nz,1)),-18.5px)}
+#map .st .mt{transition:opacity .3s}
+#map.far .st .mt{opacity:0}
 .slp.grab{opacity:1!important;stroke-width:16}
 .gpath{fill:none;stroke:var(--amber);stroke-width:2;stroke-dasharray:5 5;opacity:.45}
 .gpath.mv{stroke-width:4;opacity:1;stroke-dasharray:none;filter:drop-shadow(0 0 6px var(--amber))}
@@ -575,8 +579,13 @@ let past=[],future=[];
 function snap(){const s=JSON.stringify(S.tasks);if(past[past.length-1]!==s){past.push(s);if(past.length>80)past.shift();future=[];return true}return false}
 function commit(fn,msg,undoable){snap();fn();S.example=false;save();refresh();if(msg){toast(msg,undoable);logEvent('info',msg)}}
 function cleanSel(){sel=new Set([...sel].filter(byId))}
-function undo(){if(!past.length)return toast('Nothing to undo');future.push(JSON.stringify(S.tasks));S.tasks=JSON.parse(past.pop());cleanSel();save();refresh();toast('Undone')}
-function redo(){if(!future.length)return toast('Nothing to redo');past.push(JSON.stringify(S.tasks));S.tasks=JSON.parse(future.pop());cleanSel();save();refresh();toast('Redone')}
+function afterHistory(was){
+  const prev=new Map(JSON.parse(was).map(t=>[t.id,JSON.stringify(t)])),ch=S.tasks.filter(t=>prev.get(t.id)!==JSON.stringify(t));if(!ch.length)return;
+  const added=ch.filter(t=>!prev.has(t.id)).map(t=>t.id);if(added.length){sel=new Set(added);paintSel()}
+  const id=(added[0]||ch[0].id);if(S.view==='map')ensureVisible(id);else{const r=B.r.get(id);if(r)r.scrollIntoView({block:'nearest',behavior:RM?'auto':'smooth'})}
+}
+function undo(){if(!past.length)return toast('Nothing to undo');const was=JSON.stringify(S.tasks);future.push(was);S.tasks=JSON.parse(past.pop());cleanSel();save();refresh();afterHistory(was);toast('Undone')}
+function redo(){if(!future.length)return toast('Nothing to redo');const was=JSON.stringify(S.tasks);past.push(was);S.tasks=JSON.parse(future.pop());cleanSel();save();refresh();afterHistory(was);toast('Redone')}
 
 let toastT;
 const MOD=/Mac|iPhone|iPad/.test(navigator.platform)?'⌘':'Ctrl';
@@ -682,7 +691,7 @@ function mapSync(intro){
     n.g.setAttribute('aria-label',`${t.title}, ${fmt(t.min)}, ${GRADE[t.diff]}, ${t.day?dayShort(t.day):'no date'}`);
     n.ln.style.filter=`drop-shadow(0 0 3px ${n.color}88)`;
     const sig=JSON.stringify([t.title,t.diff,t.done,t.min,t.day,t.slot,(K[id]||[]).length,total(id,K),p.run,!!p.parent,p.d<=1,info.letter[id]]);
-    if(sig!==n.sig){n.sig=sig;n.g.innerHTML=nodeInner(t,n,K,info);const nm=n.g.querySelector('.nm'),bu=n.g.querySelector('.bul');if(nm&&bu){let w=0;try{w=nm.getComputedTextLength()}catch(x){}if(w)bu.setAttribute('transform',`translate(${(-16-w-14).toFixed(1)} -18.5)`)}}
+    if(sig!==n.sig){n.sig=sig;n.g.innerHTML=nodeInner(t,n,K,info);const nm=n.g.querySelector('.nm'),bu=n.g.querySelector('.bul');if(nm&&bu){let w=0;try{w=nm.getComputedTextLength()}catch(x){}if(w){bu.removeAttribute('transform');bu.style.setProperty('--bw',w.toFixed(1))}}}
   }
   $('#empty').hidden=S.tasks.length>0||S.view!=='map';
   if(!M.fitted||intro){fitCam(!M.fitted);M.fitted=true}
@@ -701,9 +710,9 @@ function fitCam(instant){
   let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
   for(const id in M.L.pos){const p=M.L.pos[id];minX=Math.min(minX,p.x-p.gap-(p.parent?TURN:0)-30);maxX=Math.max(maxX,p.x+40);minY=Math.min(minY,p.y-40);maxY=Math.max(maxY,p.y+40)}
   if(minX>maxX){minX=0;maxX=400;minY=0;maxY=200}
-  const z=clamp(Math.min((r.width-60)/(maxX-minX),(r.height-70)/(maxY-minY)),.22,1.15);
+  const top=52,bot=64,z=clamp(Math.min((r.width-60)/(maxX-minX),(r.height-top-bot)/(maxY-minY)),.22,1.15);
   const c=M.cam;c.tz=z;c.tx=Math.max(30,(r.width-(maxX-minX)*z)/2)-minX*z;
-  c.ty=(r.height+20-(maxY+minY)*z)/2;
+  c.ty=top+Math.max(0,(r.height-top-bot)-(maxY-minY)*z)/2-minY*z;
   if(instant){c.x=c.tx;c.y=c.ty;c.z=c.tz}
 }
 let lastT=performance.now();
@@ -711,6 +720,7 @@ function frame(now){
   const c=M.cam;
   c.x+=(c.tx-c.x)*.16;c.y+=(c.ty-c.y)*.16;c.z+=(c.tz-c.z)*.16;
   G.world.setAttribute('transform',`translate(${c.x.toFixed(2)} ${c.y.toFixed(2)}) scale(${c.z.toFixed(4)})`);
+  const far=c.z<.6,nz=far?Math.min(1.4,.6/c.z):1;if(far!==M.far||Math.abs(nz-(M.nz||1))>.01){M.far=far;M.nz=nz;svg.classList.toggle('far',far);svg.style.setProperty('--nz',nz.toFixed(3))}
   for(const n of M.nodes.values()){
     if(RM){n.x=n.tx;n.y=n.ty;n.s=n.dying?0:1;n.draw=1}
     else{
@@ -862,7 +872,7 @@ function ticketRender(){
       <div class="tk-punch"><div class="hole${t.done?' on':''}" data-punch title="Click to punch"><i></i></div><p><b>${t.done?'Departed':'Punch when done'}</b>${t.done?'Click the hole to put it back in service.':'Click the hole when this stop is done.'}</p></div>
       <div class="tk-acts"><span class="tkl" data-act="after" role="button" tabindex="0">Add stop after</span><span class="tkl" data-act="split" role="button" tabindex="0">Split in two</span><span class="tkl danger" data-act="delete" role="button" tabindex="0">Delete</span></div>
     </div>`;
-    const tkc=el.querySelector('.tk'),ft=el.querySelector('.tk-ft');if(tkc&&ft)tkc.style.setProperty('--ny',(ft.offsetTop+ft.offsetHeight)+'px');
+    const tkc=el.querySelector('.tk'),bd=el.querySelector('.tk-band');if(tkc&&bd)tkc.style.setProperty('--ny',bd.offsetHeight+'px');
   } else if(ids.length>1){
     const ts=ids.map(byId),mins=ts.reduce((s,t)=>s+t.min,0);
     el.innerHTML=`<div class="multi"><h2>${ids.length} stops selected</h2><ol>${ts.map(t=>`<li>${esc(t.title)}<span>${fmt(t.min)}</span></li>`).join('')}</ol>
@@ -908,6 +918,8 @@ function selectAll(){selectMany(S.tasks.map(t=>t.id));toast(`Selected all ${sel.
 function clearSel(){if(!sel.size)return;sel.clear();paintSel()}
 
 /* adding: kind = branch (new child), after (between a stop and its branches), sibling, line (new top-level line) */
+const PENDING={};
+function flushPending(id){const p=PENDING[id];if(!p)return;delete PENDING[id];const t=byId(id);if(t)logEvent('info',`${p.what}: ${t.title}. ${p.tail}`)}
 function addStop(kind,ref,opts={}){
   const r=ref?byId(ref):null;if(kind!=='line'&&!r)return;
   const t={id:uid(),title:opts.title||(kind==='line'?'New line':'New stop'),parent:null,min:30,diff:2,
@@ -922,7 +934,7 @@ function addStop(kind,ref,opts={}){
   });
   const what=kind==='line'?(t.day?'New stop':'New line'):kind==='branch'&&!wasLeaf?`New branch from ${r.title}`:kind==='sibling'?`Added next to ${r.title}`:`Added after ${r.title}`;
   const msg=`${what}. ${t.day?`Set for ${dayShort(t.day)}, ${SLOTS[SI(t.slot)][1].toLowerCase()}`:'No date yet'}`;
-  logEvent('info',msg);toast(msg);
+  PENDING[t.id]={what,tail:t.day?`Set for ${dayShort(t.day)}, ${SLOTS[SI(t.slot)][1].toLowerCase()}`:'No date yet'};toast(msg);
   sel=new Set([t.id]);paintSel();
   if(S.view==='map')ensureVisible(t.id);
   else{const row=B.r.get(t.id);if(row)row.scrollIntoView({block:'nearest',behavior:RM?'auto':'smooth'})}
@@ -936,8 +948,10 @@ function ensureVisible(id){
   if(sy<90)c.ty+=90-sy;else if(sy>r.height-90)c.ty-=sy-(r.height-90);
 }
 function rootOrderAt(wy){
-  const L=M.L;if(!L)return undefined;
-  for(const rt of rootsOf())if(L.pos[rt.id]&&L.pos[rt.id].y>wy)return rt.order-.5;
+  const L=M.L;if(!L)return undefined;const K=kidsOf();
+  for(const rt of rootsOf()){if(!L.pos[rt.id])continue;let lo=L.pos[rt.id].y,hi=lo;
+    for(const d of descendants(rt.id,K)){const q=L.pos[d];if(q){lo=Math.min(lo,q.y);hi=Math.max(hi,q.y)}}
+    if(wy<(lo+hi)/2)return rt.order-.5}
   return undefined;
 }
 function deleteStops(ids){
@@ -970,15 +984,15 @@ function toggleDone(ids){
   ids=ids.filter(byId);if(!ids.length)return;const to=!ids.every(i=>byId(i).done);
   commit(()=>{for(const i of ids)byId(i).done=to},to?(ids.length>1?`Marked ${ids.length} stops departed`:'Marked departed'):'Back in service',true);
 }
-function applyMove(id,target,zone){
+function applyMove(id,target,zone,order){
   const t=byId(id);if(!t)return;
   if(zone==='onto'){t.parent=target;t.order=nextOrder(target)}
   else if(zone==='before'||zone==='after'){const g=byId(target);t.parent=g.parent&&byId(g.parent)?g.parent:null;t.order=g.order+(zone==='before'?-.5:.5)}
-  else if(zone==='root'){t.parent=null;t.order=nextOrder(null)}
+  else if(zone==='root'){t.parent=null;t.order=order!==undefined?order:nextOrder(null)}
   renorm(t.parent);
 }
-function moveTo(id,target,zone){
-  commit(()=>applyMove(id,target,zone),zone==='onto'?`Moved under ${byId(target).title}`:zone==='root'?'Now its own line':'Reordered',true);
+function moveTo(id,target,zone,order){
+  commit(()=>applyMove(id,target,zone,order),zone==='onto'?`Moved under ${byId(target).title}`:zone==='root'?'Now its own line':'Reordered',true);
   if(S.view==='map')ensureVisible(id);
 }
 
@@ -994,7 +1008,7 @@ function openRename(id,isNew){
     mode='board';const sr=stage.getBoundingClientRect(),r=B.r.get(id).q.dst.getBoundingClientRect();
     Object.assign(inp.style,{left:(r.left-sr.left)+'px',top:(r.top-sr.top-3)+'px',width:Math.max(220,r.width)+'px'});stage.appendChild(inp);
   } else {
-    const b=$('#ticket [data-act="rename"]');if(!b)return;const r=b.getBoundingClientRect();
+    const b=$('#ticket [data-act="rename"]');if(!b){flushPending(id);return}const r=b.getBoundingClientRect();
     inp.classList.add('on-ticket');Object.assign(inp.style,{position:'fixed',left:(r.right-240)+'px',top:(r.top-4)+'px',width:'240px',textAlign:'right'});document.body.appendChild(inp);
   }
   renEl={inp,id,isNew,mode};placeRename();inp.focus();
@@ -1014,9 +1028,10 @@ function placeRename(){
 }
 function closeRename(keep){
   if(!renEl)return;const {inp,id,isNew}=renEl;renEl=null;const v=inp.value.trim();inp.remove();
-  const t=byId(id);if(!t)return;
-  if(!keep&&isNew){if(past.length){S.tasks=JSON.parse(past.pop())}cleanSel();save();refresh();return}
+  const t=byId(id);if(!t){delete PENDING[id];return}
+  if(!keep&&isNew){delete PENDING[id];const te=$('#toastel');if(te)te.remove();if(past.length){S.tasks=JSON.parse(past.pop())}cleanSel();save();refresh();return}
   if(keep&&v&&v!==t.title){if(isNew){t.title=v;save();refresh()}else commit(()=>{t.title=v})}
+  flushPending(id);
 }
 
 /* ================= context menu ================= */
@@ -1231,12 +1246,12 @@ function mapDropTarget(e,block){
   let cand=null,cd=1e9;
   for(const n of M.nodes.values()){if(block.has(n.id)||n.dying)continue;const x0=n.tx-n.gap-(n.parent?TURN:30),x1=n.tx+40;if(w.x<x0||w.x>x1)continue;const dy=Math.abs(w.y-n.ty);if(dy<cd){cd=dy;cand=n}}
   if(cand&&cd<ROW*.7)return{target:cand.id,zone:w.y<cand.ty?'before':'after',n:cand};
-  return{target:null,zone:'root'};
+  return{target:null,zone:'root',order:rootOrderAt(w.y)};
 }
 function drawPreview(d,T){
   if(!d.zone||d.zone==='delete'){G.drop.innerHTML='';return}
   const saved=S.tasks;let H=null;S.tasks=JSON.parse(JSON.stringify(saved));
-  try{applyMove(d.id,d.target,d.zone);H=mapLayout()}finally{S.tasks=saved}
+  try{applyMove(d.id,d.target,d.zone,d.order);H=mapLayout()}finally{S.tasks=saved}
   let h='';
   for(const id in H.pos){const p=H.pos[id],pp=p.parent?H.pos[p.parent]:null,dd=pp?edgePath(pp.x,pp.y,p.x,p.y,p.run):`M${p.x-p.run} ${p.y}H${p.x}`;h+=`<path class="gpath${d.block.has(id)?' mv':''}" d="${dd}"/>`}
   for(const id of d.block){const p=H.pos[id];if(p)h+=`<circle class="gring" cx="${p.x}" cy="${p.y}" r="7"/>`}
@@ -1253,8 +1268,8 @@ function updateDrag(e){
   if(S.view==='map'){
     const T=mapDropTarget(e,d.block),t=byId(d.id),isRoot=!(t.parent&&byId(t.parent));
     if(T.zone==='root'&&isRoot){if(d.key!=='none'){d.key='none';d.zone=null;d.target=null;G.drop.innerHTML=''}tag('Release to leave it where it was');return}
-    const key=(T.target||'')+T.zone;
-    if(key!==d.key){d.key=key;d.target=T.target;d.zone=T.zone;drawPreview(d,T)}
+    const key=(T.target||'')+T.zone+(T.zone==='root'?'@'+T.order:'');
+    if(key!==d.key){d.key=key;d.target=T.target;d.zone=T.zone;d.order=T.order;drawPreview(d,T)}
     const bt=T.target&&byId(T.target);
     tag(T.zone==='onto'?`Branch from ${bt.title}`:T.zone==='before'?`Move above ${bt.title}`:T.zone==='after'?`Move below ${bt.title}`:'Make it its own line');
   } else {
@@ -1280,7 +1295,7 @@ function endDrag(apply){
   if(!apply||!d.zone)return;
   if(d.zone==='delete')return deleteStops(sel.has(d.id)?[...sel]:[d.id]);
   const t=byId(d.id);
-  if(S.view==='map')moveTo(d.id,d.target,d.zone);
+  if(S.view==='map')moveTo(d.id,d.target,d.zone,d.order);
   else if(d.zone==='slot')commit(()=>{t.day=d.target.day;t.slot=d.target.slot},`Rescheduled to ${d.target.day?dayShort(d.target.day):'no date'}`,true);
   else if(d.zone==='day')commit(()=>{t.day=d.target.day},`Rescheduled to ${d.target.day?dayShort(d.target.day):'no date'}`,true);
 }
