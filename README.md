@@ -4,6 +4,24 @@ A planning network. Tasks are stations on transit lines, track length is time, a
 
 Sign on with operator ID `t205` and key `spl`.
 
+## Controls
+
+| To do this | Do this |
+|---|---|
+| Open a stop | Click it |
+| Rename | Double-click, or F2 |
+| Change time | Drag the sleepered track sideways (snaps to 15 min), or click the time on the ticket and type |
+| Schedule | Day and departure buttons on the ticket, or drag a row on the Board |
+| Move or branch | Drag a stop. The new layout previews in amber before you let go |
+| Add | The + next to a stop, or right-click. When naming a new stop, Enter starts the next one |
+| Mark done | Punch hole on the ticket |
+| Merge | Shift-click several, then Merge on the ticket |
+| Delete | Delete key, or drag to the depot |
+| Undo | Ctrl/Cmd+Z, or Undo on the message |
+| Everything else | Right-click. The menu shows each shortcut |
+
+The mouse wheel only pans and zooms. Pinch or Ctrl+wheel zooms, Fit frames the whole network, and Shift+drag on empty map selects a group.
+
 ## How your data is saved
 
 - **This browser:** every change is saved instantly and survives closing the tab or restarting the computer.
