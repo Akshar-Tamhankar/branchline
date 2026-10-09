@@ -385,6 +385,8 @@ body{background:radial-gradient(ellipse 80% 70% at 40% 20%,#132019,var(--panel) 
 #map .st .bul{transform:translate(calc(-30px - var(--bw,0) * 1px * var(--nz,1)),-18.5px)}
 #map .st .mt{transition:opacity .3s}
 #map.far .st .mt{opacity:0}
+.ln.jn{stroke-width:4}.cas.jn{stroke-width:9}
+.jfrom{display:block;font:600 12px/1.3 var(--f-body);color:var(--tdim);margin-top:3px}
 .slp.grab{opacity:1!important;stroke-width:16}
 .gpath{fill:none;stroke:var(--amber);stroke-width:2;stroke-dasharray:5 5;opacity:.45}
 .gpath.mv{stroke-width:4;opacity:1;stroke-dasharray:none;filter:drop-shadow(0 0 6px var(--amber))}
@@ -557,10 +559,22 @@ function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function save(){S.savedAt=Date.now();saveLocal();schedulePush()}
 let sel=new Set();
 const byId=id=>S.tasks.find(t=>t.id===id);
+cleanJoins();
 function kidsOf(){const m={};for(const t of S.tasks){if(t.parent&&byId(t.parent))(m[t.parent]||(m[t.parent]=[])).push(t)}for(const k in m)m[k].sort((a,b)=>a.order-b.order);return m}
 const rootsOf=()=>S.tasks.filter(t=>!(t.parent&&byId(t.parent))).sort((a,b)=>a.order-b.order);
 function total(id,K){const t=byId(id);return t.min+(K[id]||[]).reduce((s,k)=>s+total(k.id,K),0)}
 function descendants(id,K){const out=new Set();(function w(i){for(const k of K[i]||[]){out.add(k.id);w(k.id)}})(id);return out}
+function froms(t){return t&&Array.isArray(t.from)?t.from:[]}
+function cleanJoins(){for(const t of S.tasks){if(!t.from)continue;t.from=[...new Set(t.from.filter(i=>i!==t.id&&i!==t.parent&&byId(i)))];if(!t.from.length)delete t.from}}
+function upstream(id){const out=new Set(),st=[id];while(st.length){const t=byId(st.pop());if(!t)continue;for(const p of[t.parent,...froms(t)])if(p&&byId(p)&&!out.has(p)){out.add(p);st.push(p)}}return out}
+function downstream(id){const nx={};for(const t of S.tasks)for(const p of[t.parent,...froms(t)])if(p)(nx[p]||(nx[p]=[])).push(t.id);const out=new Set(),st=[id];while(st.length){for(const c of nx[st.pop()]||[])if(!out.has(c)){out.add(c);st.push(c)}}return out}
+function joinCheck(s,t){
+  if(s===t)return 'Pick a different stop';const T=byId(t);if(!T||!byId(s))return 'That stop is gone';
+  if(T.parent===s||froms(T).includes(s))return 'These are already joined';
+  if(upstream(s).has(t))return "Can't join: that would loop back";
+  if(upstream(t).has(s))return 'Already further down this line';
+  return null;
+}
 function ancestors(id){const out=[];let p=byId(id)?.parent,g=0;while(p&&byId(p)&&g++<999){out.push(p);p=byId(p).parent}return out}
 function visibleFn(K){const memo={};const v=t=>{if(t.id in memo)return memo[t.id];return memo[t.id]=!S.hideDone||!t.done||(K[t.id]||[]).some(v)};return v}
 const BUL='ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -624,7 +638,7 @@ const K_PX=1.1,PAD=14,TURN=58,ROW=84,X0=60;
 const runOf=t=>Math.max(18,Math.min(t.min,360)*K_PX);
 const G={world:$('#world'),cas:$('#g-cas'),slp:$('#g-slp'),ln:$('#g-ln'),tr:$('#g-tr'),drop:$('#g-drop'),st:$('#g-st'),ghost:$('#g-ghost')};
 const svg=$('#map'),stage=$('#stage');
-const M={nodes:new Map(),L:null,cam:{x:40,y:60,z:1,tx:40,ty:60,tz:1},fitted:false};
+const M={joins:new Map(),nodes:new Map(),L:null,cam:{x:40,y:60,z:1,tx:40,ty:60,tz:1},fitted:false};
 const DIAL=[...Array(5)].map((_,i)=>{const r=12.5,a0=(-90+i*72+9)*Math.PI/180,a1=(-90+i*72+63)*Math.PI/180;return `M${(r*Math.cos(a0)).toFixed(2)} ${(r*Math.sin(a0)).toFixed(2)}A${r} ${r} 0 0 1 ${(r*Math.cos(a1)).toFixed(2)} ${(r*Math.sin(a1)).toFixed(2)}`});
 
 function mapLayout(){
@@ -694,6 +708,13 @@ function mapSync(intro){
     if(sig!==n.sig){n.sig=sig;n.g.innerHTML=nodeInner(t,n,K,info);const nm=n.g.querySelector('.nm'),bu=n.g.querySelector('.bul');if(nm&&bu){let w=0;try{w=nm.getComputedTextLength()}catch(x){}if(w){bu.removeAttribute('transform');bu.style.setProperty('--bw',w.toFixed(1))}}}
   }
   $('#empty').hidden=S.tasks.length>0||S.view!=='map';
+  const want=new Set();
+  for(const t of S.tasks)for(const s of froms(t)){
+    if(!L.pos[t.id]||!L.pos[s])continue;const k=s+'>'+t.id;want.add(k);let j=M.joins.get(k);
+    if(!j){j={s,t:t.id,cas:mk('path','edge cas jn',G.cas),ln:mk('path','edge ln jn',G.ln)};j.cas.dataset.join=k;j.ln.dataset.join=k;M.joins.set(k,j)}
+    j.ln.style.stroke=info.color[s];j.ln.style.filter=`drop-shadow(0 0 3px ${info.color[s]}88)`;j.ln.classList.toggle('done',!!byId(s).done);
+  }
+  for(const [k,j] of M.joins)if(!want.has(k)){j.cas.remove();j.ln.remove();M.joins.delete(k)}
   if(!M.fitted||intro){fitCam(!M.fitted);M.fitted=true}
 }
 function killNode(n){for(const e of[n.g,n.cas,n.slp,n.ln,n.tr])e.remove();M.nodes.delete(n.id)}
@@ -704,6 +725,20 @@ function edgePath(px,py,cx,cy,run){
   if(ady<=w-6){const h=(w-ady)/2;return d+`H${(x1+h).toFixed(1)}L${(x2-h).toFixed(1)} ${cy.toFixed(1)}H${cx.toFixed(1)}`}
   const r=Math.max(0,Math.min(w/2,ady/2,22)),s=Math.sign(dy),xm=(x1+x2)/2;
   return d+`H${(xm-r).toFixed(1)}Q${xm.toFixed(1)} ${py.toFixed(1)} ${xm.toFixed(1)} ${(py+s*r).toFixed(1)}V${(cy-s*r).toFixed(1)}Q${xm.toFixed(1)} ${cy.toFixed(1)} ${(xm+r).toFixed(1)} ${cy.toFixed(1)}H${cx.toFixed(1)}`;
+}
+function rpath(P,r){
+  let d=`M${P[0][0].toFixed(1)} ${P[0][1].toFixed(1)}`;
+  for(let i=1;i<P.length-1;i++){const [x0,y0]=P[i-1],[x1,y1]=P[i],[x2,y2]=P[i+1],l1=Math.hypot(x1-x0,y1-y0),l2=Math.hypot(x2-x1,y2-y1),rr=Math.min(r,l1/2,l2/2);
+    if(rr<1||!l1||!l2){d+=`L${x1.toFixed(1)} ${y1.toFixed(1)}`;continue}
+    d+=`L${(x1-(x1-x0)/l1*rr).toFixed(1)} ${(y1-(y1-y0)/l1*rr).toFixed(1)}Q${x1.toFixed(1)} ${y1.toFixed(1)} ${(x1+(x2-x1)/l2*rr).toFixed(1)} ${(y1+(y2-y1)/l2*rr).toFixed(1)}`}
+  const L=P[P.length-1];return d+`L${L[0].toFixed(1)} ${L[1].toFixed(1)}`;
+}
+/* a joining line leaves its stop to the right and merges into the target's track just before the sleepers */
+function joinPath(a,b){
+  const jx=b.x-(b.parent?b.gap:b.run)+6,ty=b.y;
+  if(jx-26>a.x+PAD){const xv=Math.max(a.x+PAD+12,jx-22);return rpath([[a.x,a.y],[xv,a.y],[xv,ty],[jx+8,ty]],18)}
+  const ym=ty+(a.y<ty?-ROW*.48:ROW*.48),xo=a.x+26,xb=jx-24;
+  return rpath([[a.x,a.y],[xo,a.y],[xo,ym],[xb,ym],[xb,ty],[jx+8,ty]],16);
 }
 function fitCam(instant){
   const r=stage.getBoundingClientRect();if(!M.L||!r.width)return;
@@ -746,6 +781,11 @@ function frame(now){
       else n.tr.style.opacity=0;
     } else n.tr.style.opacity=0;
   }
+  for(const j of M.joins.values()){
+    const a=M.nodes.get(j.s),b=M.nodes.get(j.t);if(!a||!b)continue;
+    const d=joinPath(a,b),o=Math.min(a.dying?a.s:a.draw,b.dying?b.s:b.draw);
+    j.cas.setAttribute('d',d);j.ln.setAttribute('d',d);j.cas.style.opacity=o;j.ln.style.opacity=o;
+  }
   ghostFrame();placeRename();
   requestAnimationFrame(frame);
 }
@@ -753,9 +793,11 @@ function frame(now){
 /* route tracing on hover: the whole route from terminus through every branch lights up */
 function trace(id){
   for(const n of M.nodes.values())for(const e of[n.g,n.cas,n.slp,n.ln,n.tr])e.classList.remove('lit');
+  for(const j of M.joins.values()){j.cas.classList.remove('lit');j.ln.classList.remove('lit')}
   if(!id){svg.classList.remove('tracing');return}
-  const K=kidsOf(),lit=new Set([id,...ancestors(id),...descendants(id,K)]);
+  const lit=new Set([id,...upstream(id),...downstream(id)]);
   for(const i of lit){const n=M.nodes.get(i);if(n)for(const e of[n.g,n.cas,n.slp,n.ln,n.tr])e.classList.add('lit')}
+  for(const j of M.joins.values())if(lit.has(j.s)&&lit.has(j.t)){j.cas.classList.add('lit');j.ln.classList.add('lit')}
   svg.classList.add('tracing');
 }
 
@@ -856,7 +898,7 @@ function ticketRender(){
     const run=clamp(t.min/240,0,1);
     el.innerHTML=`<div class="tk${fresh&&!RM?' print':''}" style="--c:${info.color[t.id]}">
       <div class="tk-band"><span class="tbul" title="${esc(info.line[t.id])} line">${info.letter[t.id]||''}</span><span class="tline">${esc(info.line[t.id])} line</span><span>Stop ${t.id.toUpperCase()}</span></div>
-      <div class="tk-ft"><div class="from"><small>From</small><b>${p?esc(p.title):'Terminus'}</b></div>
+      <div class="tk-ft"><div class="from"><small>From</small><b>${p?esc(p.title):'Terminus'}</b>${froms(t).length?`<span class="jfrom">and ${froms(t).filter(byId).map(i=>esc(byId(i).title)).join(', ')}</span>`:''}</div>
         <svg viewBox="0 0 34 14" aria-hidden="true"><path d="M1 7H30M24 1l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
         <div class="to"><small>To</small><b data-act="rename" title="Double-click to rename">${esc(t.title)}</b></div></div>
       <div class="tk-sec"><small>Date</small><div class="cells days">${days.map((d,i)=>`<div class="cell${t.day===d?' on':''}${i===0?' today':''}" data-day="${d}" role="button" tabindex="0"><em>${dt(d).toLocaleDateString(undefined,{weekday:'short'}).slice(0,2)}</em>${dt(d).getDate()}</div>`).join('')}<div class="cell nd${t.day?'':' on'}" data-day="" role="button" tabindex="0">No date</div></div>
@@ -870,7 +912,7 @@ function ticketRender(){
       </div>
       ${kids?`<div class="tk-sec"><small>Branch</small><b style="font:800 15px var(--f-body)">${kids} stops beyond, ${fmt(total(t.id,K))} total</b></div>`:''}
       <div class="tk-punch"><div class="hole${t.done?' on':''}" data-punch title="Click to punch"><i></i></div><p><b>${t.done?'Departed':'Punch when done'}</b>${t.done?'Click the hole to put it back in service.':'Click the hole when this stop is done.'}</p></div>
-      <div class="tk-acts"><span class="tkl" data-act="after" role="button" tabindex="0">Add stop after</span><span class="tkl" data-act="split" role="button" tabindex="0">Split in two</span><span class="tkl danger" data-act="delete" role="button" tabindex="0">Delete</span></div>
+      <div class="tk-acts"><span class="tkl" data-act="after" role="button" tabindex="0">Add stop after</span><span class="tkl" data-act="join" role="button" tabindex="0">Join into…</span><span class="tkl" data-act="split" role="button" tabindex="0">Split in two</span><span class="tkl danger" data-act="delete" role="button" tabindex="0">Delete</span></div>
     </div>`;
     const tkc=el.querySelector('.tk'),bd=el.querySelector('.tk-band');if(tkc&&bd)tkc.style.setProperty('--ny',bd.offsetHeight+'px');
   } else if(ids.length>1){
@@ -956,7 +998,7 @@ function rootOrderAt(wy){
 }
 function deleteStops(ids){
   ids=ids.filter(byId);if(!ids.length)return;
-  commit(()=>{for(const id of ids){const t=byId(id);if(!t)continue;for(const k of S.tasks)if(k.parent===id)k.parent=t.parent;S.tasks=S.tasks.filter(x=>x.id!==id)}},`Deleted ${ids.length===1?'1 stop':ids.length+' stops'}`,true);
+  commit(()=>{for(const id of ids){const t=byId(id);if(!t)continue;for(const k of S.tasks)if(k.parent===id)k.parent=t.parent;S.tasks=S.tasks.filter(x=>x.id!==id)}cleanJoins()},`Deleted ${ids.length===1?'1 stop':ids.length+' stops'}`,true);
   sel=new Set([...sel].filter(byId));paintSel();
 }
 function mergeStops(ids){
@@ -969,14 +1011,16 @@ function mergeStops(ids){
     let top=null,a=keep.parent,g=0;while(a&&g++<999){if(set.has(a))top=a;a=byId(a)?.parent}
     let p=top?byId(top).parent:keep.parent;g=0;while(p&&set.has(p)&&g++<999)p=byId(p).parent;keep.parent=p||null;
     for(const t of S.tasks)if(t.id!==keep.id&&set.has(t.parent))t.parent=keep.id;
-    S.tasks=S.tasks.filter(t=>t.id===keep.id||!set.has(t.id));
+    keep.from=[...new Set(ts.flatMap(froms))];
+    for(const t of S.tasks)if(t.from)t.from=t.from.map(i=>set.has(i)?keep.id:i);
+    S.tasks=S.tasks.filter(t=>t.id===keep.id||!set.has(t.id));cleanJoins();
   },`Merged ${ids.length} stops`,true);
   sel=new Set([keep.id]);paintSel();if(S.view==='map')ensureVisible(keep.id);
 }
 function splitStop(id){
   const t=byId(id);if(!t)return;
   const each=Math.max(5,Math.round(t.min/2/5)*5),base=t.title.replace(/\s\(\d\/\d\)$/,'');
-  const b={...t,id:uid(),title:`${base} (2/2)`,min:each,day:t.day?addDays(t.day,1):null,done:false,order:t.order+.5};
+  const b={...t,id:uid(),title:`${base} (2/2)`,min:each,day:t.day?addDays(t.day,1):null,done:false,order:t.order+.5,from:undefined};
   commit(()=>{t.title=`${base} (1/2)`;t.min=each;S.tasks.push(b);renorm(t.parent)},'Split into 2 stops',true);
   if(S.view==='map')ensureVisible(b.id);
 }
@@ -989,8 +1033,14 @@ function applyMove(id,target,zone,order){
   if(zone==='onto'){t.parent=target;t.order=nextOrder(target)}
   else if(zone==='before'||zone==='after'){const g=byId(target);t.parent=g.parent&&byId(g.parent)?g.parent:null;t.order=g.order+(zone==='before'?-.5:.5)}
   else if(zone==='root'){t.parent=null;t.order=order!==undefined?order:nextOrder(null)}
-  renorm(t.parent);
+  renorm(t.parent);cleanJoins();
 }
+function addJoin(s,t){
+  const why=joinCheck(s,t);if(why)return toast(why);
+  commit(()=>{const T=byId(t);T.from=[...froms(T),s]},`${byId(s).title} now joins into ${byId(t).title}`,true);
+  if(S.view==='map')ensureVisible(t);
+}
+function removeJoin(s,t){commit(()=>{const T=byId(t);T.from=froms(T).filter(x=>x!==s);if(!T.from.length)delete T.from},`Removed the join from ${byId(s).title}`,true)}
 function moveTo(id,target,zone,order){
   commit(()=>applyMove(id,target,zone,order),zone==='onto'?`Moved under ${byId(target).title}`:zone==='root'?'Now its own line':'Reordered',true);
   if(S.view==='map')ensureVisible(id);
@@ -1074,6 +1124,8 @@ function stopMenu(id,x,y){
     {label:'Rename',key:'F2',fn:()=>openRename(id)},
     {label:'Add stop after',key:'A',fn:()=>addStop('after',id)},
     {label:'Branch from here',key:'B',fn:()=>addStop('branch',id)},
+    {label:'Join into another stop…',key:'J',fn:()=>startPick(id)},
+    ...froms(t).filter(byId).map(s=>({label:`Remove join from ${byId(s).title}`,key:'',fn:()=>removeJoin(s,id)})),
     '-',
     {label:t.done?'Back in service':'Mark departed',key:'D',fn:()=>toggleDone([id])},
     {label:'Split in two',key:'S',fn:()=>splitStop(id)},
@@ -1108,10 +1160,11 @@ function trackAt(e){
 function grabLight(id){if(M.grab===id)return;const o=M.grab&&M.nodes.get(M.grab);if(o)o.slp.classList.remove('grab');M.grab=id;const n=id&&M.nodes.get(id);if(n)n.slp.classList.add('grab')}
 function clearHover(){tag('');cur.classList.remove('over','ew');grabLight(null);if(ms.hover){ms.hover=null;trace(null)}}
 function hintFor(e){
-  if(ms.drag||ms.time||ms.box||!e.target.closest)return;
+  if(ms.drag||ms.time||ms.box||ms.join||ms.pick||!e.target.closest)return;
+  if(e.target.closest('[data-join]')){cur.classList.add('over');tag('Right-click to remove this join');return}
   const tg=e.target;
   const plus=tg.closest('[data-plus]');if(plus)grabLight(null);
-  if(plus){const id=plus.closest('.st').dataset.id;cur.classList.add('over');cur.classList.remove('ew');tag((kidsOf()[id]||[]).length?'Branch from here':'Extend this line');return}
+  if(plus){const id=plus.closest('.st').dataset.id;cur.classList.add('over');cur.classList.remove('ew');tag(((kidsOf()[id]||[]).length?'Click to branch':'Click to extend')+'. Drag onto a stop to join');return}
   const tr=trackAt(e);cur.classList.toggle('ew',!!tr);grabLight(tr);
   if(tr){tag(`${fmt(byId(tr).min)} journey. Drag sideways to change`);return}
   const id=itemAt(tg);
@@ -1124,7 +1177,23 @@ function hintFor(e){
 }
 
 /* ================= input ================= */
-const ms={press:null,drag:null,pan:null,time:null,box:null,plus:null,hover:null};
+const ms={press:null,drag:null,pan:null,time:null,box:null,plus:null,hover:null,join:null,pick:null};
+function joinTargetAt(e,from){const w=toWorld(e.clientX,e.clientY);let best=null,bd=28;for(const n of M.nodes.values()){if(n.dying||n.id===from)continue;const d=Math.hypot(n.x-w.x,n.y-w.y);if(d<bd){bd=d;best=n}}return best}
+function updateJoin(e){
+  const J=ms.join||ms.pick,a=M.nodes.get(J.from);if(!a)return;
+  const w=toWorld(e.clientX,e.clientY),T=joinTargetAt(e,J.from);J.target=null;let h='';
+  if(T){const why=joinCheck(J.from,T.id);
+    if(!why){J.target=T.id;h=`<path class="gpath mv" d="${joinPath(a,T)}"/><circle class="drop-ring" cx="${T.x}" cy="${T.y}" r="14"/>`;tag(`Join into ${byId(T.id).title}`)}
+    else{h=`<path class="gpath" d="M${a.x} ${a.y}L${w.x} ${w.y}"/>`;tag(why,true)}}
+  else{h=`<path class="gpath" d="M${a.x} ${a.y}L${w.x} ${w.y}"/><circle class="gring" cx="${w.x}" cy="${w.y}" r="5"/>`;tag(ms.pick?'Click the stop this line joins into. Esc cancels':'Drop on the stop this line joins into')}
+  G.drop.innerHTML=h;
+}
+function endJoin(apply){const J=ms.join||ms.pick;ms.join=null;ms.pick=null;G.drop.innerHTML='';tag('');if(apply&&J&&J.target)addJoin(J.from,J.target)}
+function startPick(id){
+  closeMenu();closeRename(true);
+  const go=()=>{ms.pick={from:id,target:null};trace(null);updateJoin({clientX:mx,clientY:my})};
+  if(S.view!=='map'){setView('map');setTimeout(go,RM?50:1000)}else go();
+}
 const depot=$('#depot'),boxEl=$('#boxsel');
 function itemAt(target){const s=target.closest&&target.closest('.st,.edge,.row[data-id]');return s&&s.dataset.id&&byId(s.dataset.id)?s.dataset.id:null}
 function toWorld(x,y){const r=svg.getBoundingClientRect(),c=M.cam;return{x:(x-r.left-c.x)/c.z,y:(y-r.top-c.y)/c.z}}
@@ -1138,14 +1207,18 @@ stage.addEventListener('contextmenu',e=>{
   if(e.target.closest('.ren,.mapctl'))return;
   if(performance.now()-lastTouchMenu<900)return;
   if(ms.drag){endDrag(false);return}
+  if(ms.pick||ms.join){endJoin(false);return}
+  const jn=e.target.closest('[data-join]');
+  if(jn){const [a,b]=jn.dataset.join.split('>');if(byId(a)&&byId(b))return openMenu(e.clientX,e.clientY,`${byId(a).title} into ${byId(b).title}`,[{label:'Remove this join',key:'',danger:true,fn:()=>removeJoin(a,b)},{label:`Open ${byId(b).title}`,key:'',fn:()=>{select(b,false)}}])}
   const pl=e.target.closest('[data-plus]'),id=itemAt(e.target)||(pl&&pl.closest('.st').dataset.id);
   if(id)stopMenu(id,e.clientX,e.clientY);else emptyMenu(e.clientX,e.clientY,e.target);
 });
 stage.addEventListener('mousedown',e=>{
+  if(ms.pick&&e.button===0){e.preventDefault();endJoin(true);return}
   if(e.button!==0||e.target.closest('.ren,.mapctl'))return;
   closeRename(true);
   const plus=e.target.closest('[data-plus]');
-  if(plus){ms.plus=plus.closest('.st').dataset.id;e.preventDefault();return}
+  if(plus){ms.plus={id:plus.closest('.st').dataset.id,x:e.clientX,y:e.clientY};e.preventDefault();return}
   const tr=trackAt(e);
   if(tr){const t=byId(tr),n=M.nodes.get(tr);ms.time={id:tr,x0:e.clientX,m0:t.min,moved:false,snapped:snap()};M.timeDrag={id:tr,gap0:n.gap,run0:n.run};e.preventDefault();return}
   const id=itemAt(e.target);
@@ -1159,6 +1232,8 @@ window.addEventListener('mousemove',e=>{
   mx=e.clientX;my=e.clientY;
   cur.style.opacity=e.target.closest&&e.target.closest('input,select,textarea,#gate')?0:1;
   cur.classList.toggle('l',!!(e.buttons&1));
+  if(ms.plus&&!ms.join&&(Math.abs(e.clientX-ms.plus.x)+Math.abs(e.clientY-ms.plus.y))>6){ms.join={from:ms.plus.id,target:null};ms.plus=null;trace(null)}
+  if(ms.join||ms.pick)return updateJoin(e);
   if(ms.time)return timeMove(e);
   if(ms.box)return placeBox();
   if(ms.press&&!ms.drag&&(Math.abs(e.clientX-ms.press.x)+Math.abs(e.clientY-ms.press.y))>6)startDrag(ms.press.id,e);
@@ -1170,7 +1245,8 @@ window.addEventListener('mousemove',e=>{
 window.addEventListener('mouseup',e=>{
   if(e.button!==0)return;
   cur.classList.remove('l');
-  if(ms.plus){const id=ms.plus;ms.plus=null;if(e.target.closest&&e.target.closest('[data-plus]'))addStop('branch',id);return}
+  if(ms.join)return endJoin(true);
+  if(ms.plus){const id=ms.plus.id;ms.plus=null;if(e.target.closest&&e.target.closest('[data-plus]'))addStop('branch',id);return}
   if(ms.time)return endTimeDrag();
   if(ms.box)return endBox();
   if(ms.drag)endDrag(true);
@@ -1309,6 +1385,7 @@ tk.addEventListener('click',e=>{
     if(a==='delete')return deleteStops(ids);
     if(a==='done')return toggleDone(ids);
     if(a==='after')return addStop('after',ids[0]);
+    if(a==='join')return startPick(ids[0]);
     if(a==='split')return splitStop(ids[0]);
     if(a==='time')return openTimeEdit();
   }
@@ -1386,6 +1463,7 @@ function applyView(enter){
 /* ================= keyboard: the shortcuts the right-click menu shows ================= */
 document.addEventListener('keydown',e=>{
   if(e.target.closest('input,textarea,select,.cmenu'))return;
+  if(e.key==='Escape'&&(ms.pick||ms.join)){e.preventDefault();endJoin(false);return}
   const mod=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();
   if(mod&&k==='z'){e.preventDefault();e.shiftKey?redo():undo();return}
   if(mod&&k==='y'){e.preventDefault();redo();return}
@@ -1400,6 +1478,7 @@ document.addEventListener('keydown',e=>{
   else if(k==='b'&&one)addStop('branch',one);
   else if(k==='d'&&sel.size)toggleDone([...sel]);
   else if(k==='s'&&one)splitStop(one);
+  else if(k==='j'&&one)startPick(one);
   else if(k==='m'&&sel.size>1)mergeStops([...sel]);
   else if(k==='n')addStop('line',null);
   else if(k==='f'&&S.view==='map')fitCam(false);
