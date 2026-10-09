@@ -157,11 +157,12 @@ body{background:radial-gradient(ellipse 80% 70% at 40% 20%,#132019,var(--panel) 
 .tk-band{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 12px;border-radius:12px 12px 0 0;background:var(--c);color:#0A0E0C}
 .tk-band b{font:900 22px/1 var(--f-sign);letter-spacing:.02em;text-transform:uppercase;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .tk-band span{font:700 10.5px/1.2 var(--f-mono);opacity:.75;white-space:nowrap}
-.tk-ft{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end;padding:14px 16px 16px;border-bottom:2px dashed var(--tline);min-height:90px}
+.tk-ft{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;padding:14px 16px 16px;border-bottom:2px dashed var(--tline);min-height:90px}
 .tk small{display:block;font:700 10px/1 var(--f-mono);color:var(--tdim);letter-spacing:.08em;margin-bottom:6px}
 .tk-ft .from b{font:700 14px/1.2 var(--f-body);color:var(--tdim)}
 .tk-ft .to{text-align:right}
-.tk-ft .to b{display:block;font:900 26px/1 var(--f-sign);text-transform:uppercase;letter-spacing:.01em;text-wrap:balance;overflow-wrap:anywhere}
+.tk-ft .to{grid-column:1/-1;text-align:left;margin-top:6px}
+.tk-ft .to b{display:block;font:900 clamp(26px,2.6vw,34px)/.95 var(--f-sign);overflow-wrap:normal!important;word-break:normal;hyphens:auto;text-transform:uppercase;letter-spacing:.01em;text-wrap:balance;overflow-wrap:anywhere}
 .tk-ft svg{width:34px;height:14px;margin-bottom:3px}
 .tk-sec{padding:12px 16px 0}
 .cells{display:grid;gap:4px}
@@ -289,6 +290,7 @@ body{background:radial-gradient(ellipse 80% 70% at 40% 20%,#132019,var(--panel) 
 .row .line .bul{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--c);color:#07100B;font:800 11.5px/1 var(--f-body);font-style:normal;box-shadow:0 0 10px -2px var(--c)}
 .tk-band .tbul{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#0A0E0C;color:var(--c);font:900 16px/1 var(--f-body);opacity:1;flex:none}
 .tk-band b{flex:1;min-width:0}
+.tk-band .tline{flex:1;min-width:0;font:800 12px/1.2 var(--f-body);letter-spacing:.05em;text-transform:uppercase;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ---------- stage HUD: key plate and event log ---------- */
 .hud{background:rgba(6,9,8,.9);border:1px solid var(--rule);border-radius:10px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -309,7 +311,8 @@ body{background:radial-gradient(ellipse 80% 70% at 40% 20%,#132019,var(--panel) 
 .depot{top:auto;right:auto;left:14px;bottom:14px;transform:none;opacity:.42;padding:9px 13px;font-size:12px;pointer-events:none;transition:opacity .3s,background .25s,border-color .25s,transform .4s var(--spring)}
 .depot.show{opacity:1;transform:scale(1.06)}
 #board{padding-bottom:200px}
-.toast{top:auto;bottom:calc(74px + env(safe-area-inset-bottom,0px));animation:toastIn .6s var(--spring) both}
+.toast{top:auto;bottom:calc(74px + env(safe-area-inset-bottom,0px));animation:toastFade .25s ease-out both}
+@keyframes toastFade{from{opacity:0}}
 @keyframes toastTop{from{opacity:0;transform:translate(-50%,-20px)}}
 
 /* ---------- sign-on gate ---------- */
@@ -378,12 +381,13 @@ body{background:radial-gradient(ellipse 80% 70% at 40% 20%,#132019,var(--panel) 
 .st .plus:hover circle{fill:var(--c)}
 .st .plus:hover path{stroke:#07100B}
 #map.dragging .st,#map.dragging .edge{opacity:.2}
+.slp.grab{opacity:1!important;stroke-width:16}
 .gpath{fill:none;stroke:var(--amber);stroke-width:2;stroke-dasharray:5 5;opacity:.45}
 .gpath.mv{stroke-width:4;opacity:1;stroke-dasharray:none;filter:drop-shadow(0 0 6px var(--amber))}
 .gring{fill:var(--panel-2);stroke:var(--amber);stroke-width:2.2}
 .cur.ew .ring{transform:scaleX(1.5) scaleY(.55);border-radius:6px;border-color:var(--amber)}
 .cur.ew .ch{transform:scale(0)}
-.toast .tundo{margin-left:4px;padding:3px 9px;border-radius:5px;border:1px solid var(--amber);color:var(--amber);font-weight:700}
+.toast .tundo{margin:-4px -6px -4px 4px;padding:7px 14px;border-radius:5px;border:1px solid var(--amber);color:var(--amber);font-weight:700}
 .toast .tundo:hover{background:var(--amber);color:#111}
 .cmenu{position:fixed;z-index:145;min-width:230px;max-width:300px;padding:6px;border-radius:11px;background:rgba(13,19,17,.97);border:1px solid var(--rule-2);box-shadow:0 24px 50px -16px #000;font:600 13px var(--f-body);color:var(--text);transform-origin:top left}
 .cmenu .mh{padding:6px 10px 8px;font:700 10.5px var(--f-mono);color:var(--faint);letter-spacing:.06em;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -580,7 +584,7 @@ function toast(m,undoable){
   let el=$('#toastel');if(el)el.remove();el=document.createElement('div');el.className='toast';el.id='toastel';el.setAttribute('role','status');
   el.innerHTML=`<span>${esc(m)}</span>`+(undoable?`<span class="tundo" role="button" tabindex="0">Undo</span>`:'');document.body.appendChild(el);
   const u=el.querySelector('.tundo');if(u){u.addEventListener('click',()=>{el.remove();undo()});u.addEventListener('keydown',e=>{if(e.key==='Enter'){el.remove();undo()}})}
-  clearTimeout(toastT);toastT=setTimeout(()=>{el.animate([{opacity:1},{opacity:0,transform:'translate(-50%,12px)'}],{duration:300,fill:'forwards'}).onfinish=()=>el.remove()},undoable?6000:2200);
+  clearTimeout(toastT);toastT=setTimeout(()=>{el.animate([{opacity:1},{opacity:0}],{duration:300,fill:'forwards'}).onfinish=()=>el.remove()},undoable?9000:2600);
 }
 
 /* ================= split-flap engine ================= */
@@ -697,9 +701,9 @@ function fitCam(instant){
   let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
   for(const id in M.L.pos){const p=M.L.pos[id];minX=Math.min(minX,p.x-p.gap-(p.parent?TURN:0)-30);maxX=Math.max(maxX,p.x+40);minY=Math.min(minY,p.y-40);maxY=Math.max(maxY,p.y+40)}
   if(minX>maxX){minX=0;maxX=400;minY=0;maxY=200}
-  const z=clamp(Math.min((r.width-60)/(maxX-minX),(r.height-150)/(maxY-minY)),.55,1.15);
+  const z=clamp(Math.min((r.width-60)/(maxX-minX),(r.height-70)/(maxY-minY)),.22,1.15);
   const c=M.cam;c.tz=z;c.tx=Math.max(30,(r.width-(maxX-minX)*z)/2)-minX*z;
-  c.ty=(maxY-minY)*z<r.height-150?(r.height-70-(maxY+minY)*z)/2:70-minY*z;
+  c.ty=(r.height+20-(maxY+minY)*z)/2;
   if(instant){c.x=c.tx;c.y=c.ty;c.z=c.tz}
 }
 let lastT=performance.now();
@@ -841,7 +845,7 @@ function ticketRender(){
     const days=[...Array(14)].map((_,i)=>addDays(TODAY,i));
     const run=clamp(t.min/240,0,1);
     el.innerHTML=`<div class="tk${fresh&&!RM?' print':''}" style="--c:${info.color[t.id]}">
-      <div class="tk-band"><span class="tbul">${info.letter[t.id]||''}</span><b>${esc(info.line[t.id])}</b><span>Stop ${t.id.toUpperCase()}</span></div>
+      <div class="tk-band"><span class="tbul" title="${esc(info.line[t.id])} line">${info.letter[t.id]||''}</span><span class="tline">${esc(info.line[t.id])} line</span><span>Stop ${t.id.toUpperCase()}</span></div>
       <div class="tk-ft"><div class="from"><small>From</small><b>${p?esc(p.title):'Terminus'}</b></div>
         <svg viewBox="0 0 34 14" aria-hidden="true"><path d="M1 7H30M24 1l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
         <div class="to"><small>To</small><b data-act="rename" title="Double-click to rename">${esc(t.title)}</b></div></div>
@@ -861,8 +865,7 @@ function ticketRender(){
     const tkc=el.querySelector('.tk'),ft=el.querySelector('.tk-ft');if(tkc&&ft)tkc.style.setProperty('--ny',(ft.offsetTop+ft.offsetHeight)+'px');
   } else if(ids.length>1){
     const ts=ids.map(byId),mins=ts.reduce((s,t)=>s+t.min,0);
-    el.innerHTML=`<div class="stack">${ts.slice(0,3).reverse().map((t,i,a)=>`<div class="tk" style="--c:${info.color[t.id]};--ny:58px;transform:rotate(${(a.length-1-i)*-3.5}deg) translateY(${(a.length-1-i)*6}px)"><div class="tk-band"><b>${esc(t.title)}</b><span>${fmt(t.min)}</span></div></div>`).join('')}</div>
-    <div class="multi"><h2>${ids.length} stops selected</h2><ol>${ts.map(t=>`<li>${esc(t.title)}<span>${fmt(t.min)}</span></li>`).join('')}</ol>
+    el.innerHTML=`<div class="multi"><h2>${ids.length} stops selected</h2><ol>${ts.map(t=>`<li>${esc(t.title)}<span>${fmt(t.min)}</span></li>`).join('')}</ol>
       <p class="adv" style="color:var(--dim)">Merging makes one stop of ${fmt(mins)}. It keeps the hardest grade (${GRADE[Math.max(...ts.map(t=>t.diff))]}) and the earliest date, and moves their branches onto the merged stop.</p>
       <div class="mbtns"><span class="tkbtn primary" data-act="merge" role="button" tabindex="0">Merge ${ids.length} stops</span><span class="tkbtn" data-act="done" role="button" tabindex="0">${ts.every(t=>t.done)?'Back in service':'Mark departed'}</span><span class="tkbtn danger" data-act="delete" role="button" tabindex="0">Delete ${ids.length}</span></div></div>`;
     if(fresh&&!RM)el.querySelectorAll('.stack .tk').forEach((c,i)=>c.animate([{opacity:0,transform:'translateY(-30px) rotate(8deg)'},{opacity:1}],{duration:600,delay:i*90,easing:'cubic-bezier(.34,1.56,.64,1)',fill:'backwards'}));
@@ -908,7 +911,8 @@ function clearSel(){if(!sel.size)return;sel.clear();paintSel()}
 function addStop(kind,ref,opts={}){
   const r=ref?byId(ref):null;if(kind!=='line'&&!r)return;
   const t={id:uid(),title:opts.title||(kind==='line'?'New line':'New stop'),parent:null,min:30,diff:2,
-    slot:opts.slot||(r?r.slot:'afternoon'),day:opts.day!==undefined?opts.day:(r?r.day:null),done:false,order:0};
+    slot:opts.slot||'afternoon',day:opts.day!==undefined?opts.day:null,done:false,order:0};
+  const wasLeaf=r&&!(kidsOf()[r.id]||[]).length;
   commit(()=>{
     if(kind==='branch'){t.parent=r.id;t.order=nextOrder(r.id)}
     else if(kind==='after'){for(const k of S.tasks)if(k.parent===r.id)k.parent=t.id;t.parent=r.id;t.order=0}
@@ -916,7 +920,9 @@ function addStop(kind,ref,opts={}){
     else{t.parent=null;t.order=opts.order!==undefined?opts.order:nextOrder(null)}
     S.tasks.push(t);renorm(t.parent);
   });
-  logEvent('info',kind==='line'?'New line added':kind==='branch'?`New branch from ${r.title}`:`New stop after ${r.title}`);
+  const what=kind==='line'?(t.day?'New stop':'New line'):kind==='branch'&&!wasLeaf?`New branch from ${r.title}`:kind==='sibling'?`Added next to ${r.title}`:`Added after ${r.title}`;
+  const msg=`${what}. ${t.day?`Set for ${dayShort(t.day)}, ${SLOTS[SI(t.slot)][1].toLowerCase()}`:'No date yet'}`;
+  logEvent('info',msg);toast(msg);
   sel=new Set([t.id]);paintSel();
   if(S.view==='map')ensureVisible(t.id);
   else{const row=B.r.get(t.id);if(row)row.scrollIntoView({block:'nearest',behavior:RM?'auto':'smooth'})}
@@ -951,13 +957,14 @@ function mergeStops(ids){
     for(const t of S.tasks)if(t.id!==keep.id&&set.has(t.parent))t.parent=keep.id;
     S.tasks=S.tasks.filter(t=>t.id===keep.id||!set.has(t.id));
   },`Merged ${ids.length} stops`,true);
-  sel=new Set([keep.id]);paintSel();
+  sel=new Set([keep.id]);paintSel();if(S.view==='map')ensureVisible(keep.id);
 }
 function splitStop(id){
   const t=byId(id);if(!t)return;
   const each=Math.max(5,Math.round(t.min/2/5)*5),base=t.title.replace(/\s\(\d\/\d\)$/,'');
   const b={...t,id:uid(),title:`${base} (2/2)`,min:each,day:t.day?addDays(t.day,1):null,done:false,order:t.order+.5};
   commit(()=>{t.title=`${base} (1/2)`;t.min=each;S.tasks.push(b);renorm(t.parent)},'Split into 2 stops',true);
+  if(S.view==='map')ensureVisible(b.id);
 }
 function toggleDone(ids){
   ids=ids.filter(byId);if(!ids.length)return;const to=!ids.every(i=>byId(i).done);
@@ -972,6 +979,7 @@ function applyMove(id,target,zone){
 }
 function moveTo(id,target,zone){
   commit(()=>applyMove(id,target,zone),zone==='onto'?`Moved under ${byId(target).title}`:zone==='root'?'Now its own line':'Reordered',true);
+  if(S.view==='map')ensureVisible(id);
 }
 
 /* ================= rename (inline, follows the stop) ================= */
@@ -994,7 +1002,7 @@ function openRename(id,isNew){
     e.stopPropagation();
     if(e.key==='Enter'){
       e.preventDefault();const v=inp.value.trim(),chain=renEl&&renEl.isNew&&v;closeRename(true);
-      if(chain){if(S.view==='board')addStop('sibling',id);else addStop('branch',id)}
+      if(chain){const tt=byId(id);if(S.view==='board')addStop('sibling',id,tt?{day:tt.day,slot:tt.slot}:{});else addStop('branch',id)}
     }
     if(e.key==='Escape'){e.preventDefault();closeRename(false)}
   });
@@ -1078,16 +1086,18 @@ const CLICKABLE='[data-day],[data-slot],[data-diff],[data-punch],[data-scrub],[d
 function trackAt(e){
   if(S.view!=='map')return null;
   const ed=e.target.closest&&e.target.closest('.edge');if(!ed)return null;
-  const n=M.nodes.get(ed.dataset.id);if(!n||n.run<=14)return null;
-  const w=toWorld(e.clientX,e.clientY);
-  return w.x>=n.x-n.run-4&&w.x<=n.x-9&&Math.abs(w.y-n.y)<=11?n.id:null;
+  const n=M.nodes.get(ed.dataset.id);if(!n)return null;
+  const w=toWorld(e.clientX,e.clientY),x0=n.parent?n.x-n.gap:n.x-n.run;
+  return w.x>=x0-4&&w.x<=n.x-9&&Math.abs(w.y-n.y)<=11?n.id:null;
 }
+function grabLight(id){if(M.grab===id)return;const o=M.grab&&M.nodes.get(M.grab);if(o)o.slp.classList.remove('grab');M.grab=id;const n=id&&M.nodes.get(id);if(n)n.slp.classList.add('grab')}
+function clearHover(){tag('');cur.classList.remove('over','ew');grabLight(null);if(ms.hover){ms.hover=null;trace(null)}}
 function hintFor(e){
   if(ms.drag||ms.time||ms.box||!e.target.closest)return;
   const tg=e.target;
-  const plus=tg.closest('[data-plus]');
+  const plus=tg.closest('[data-plus]');if(plus)grabLight(null);
   if(plus){const id=plus.closest('.st').dataset.id;cur.classList.add('over');cur.classList.remove('ew');tag((kidsOf()[id]||[]).length?'Branch from here':'Extend this line');return}
-  const tr=trackAt(e);cur.classList.toggle('ew',!!tr);
+  const tr=trackAt(e);cur.classList.toggle('ew',!!tr);grabLight(tr);
   if(tr){tag(`${fmt(byId(tr).min)} journey. Drag sideways to change`);return}
   const id=itemAt(tg);
   cur.classList.toggle('over',!!id||!!tg.closest(CLICKABLE));
@@ -1160,12 +1170,14 @@ stage.addEventListener('mouseleave',()=>{if(S.view==='map'&&!ms.drag){ms.hover=n
 stage.addEventListener('wheel',e=>{
   if(S.view!=='map'||e.target.closest('.lgpanel'))return;
   e.preventDefault();
+  clearHover();
   if(e.ctrlKey||e.metaKey){const c=M.cam,r=svg.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;zoomAt(px,py,c.tz*Math.exp(-e.deltaY*.0022));return}
-  M.cam.tx-=e.deltaX;M.cam.ty-=e.deltaY;
+  const f=e.deltaMode===1?16:e.deltaMode===2?400:1,k=(Math.abs(e.deltaX)+Math.abs(e.deltaY))*f<40?1:.45;
+  M.cam.tx-=e.deltaX*f*k;M.cam.ty-=e.deltaY*f*k;
 },{passive:false});
-function zoomAt(px,py,z){const c=M.cam;z=clamp(z,.35,2.2);c.tx=px-(px-c.tx)*z/c.tz;c.ty=py-(py-c.ty)*z/c.tz;c.tz=z}
+function zoomAt(px,py,z){const c=M.cam;z=clamp(z,.22,2.2);c.tx=px-(px-c.tx)*z/c.tz;c.ty=py-(py-c.ty)*z/c.tz;c.tz=z}
 $('#mapctl').addEventListener('click',e=>{
-  const a=e.target.closest('[data-act]');if(!a)return;const r=svg.getBoundingClientRect();
+  const a=e.target.closest('[data-act]');if(!a)return;const r=svg.getBoundingClientRect();clearHover();
   if(a.dataset.act==='fit')fitCam(false);else zoomAt(r.width/2,r.height/2,M.cam.tz*(a.dataset.act==='zoomin'?1.25:.8));
 });
 $('#mapctl').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.target.click()}});
@@ -1173,12 +1185,12 @@ $('#mapctl').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.p
 /* drag the end of a stop's track to change its journey time, snapping to 15-minute sleepers */
 function timeMove(e){
   const T=ms.time;if(Math.abs(e.clientX-T.x0)>3)T.moved=true;if(!T.moved)return;
-  const t=byId(T.id),v=clamp(Math.round((T.m0+(e.clientX-T.x0)/M.cam.z/K_PX)/15)*15,15,600);
+  const stepPx=Math.max(15*K_PX*M.cam.z,14),t=byId(T.id),v=clamp(Math.round(T.m0/15+(e.clientX-T.x0)/stepPx)*15,15,600);
   if(v!==t.min){t.min=v;mapSync(false);if(sel.size===1&&sel.has(t.id))setTicketMin(t)}
   cur.classList.add('ew');tag(`${fmt(t.min)} journey`);
 }
 function endTimeDrag(){
-  const T=ms.time;ms.time=null;M.timeDrag=null;const t=byId(T.id);
+  const T=ms.time;ms.time=null;M.timeDrag=null;grabLight(null);const t=byId(T.id);
   if(!T.moved||!t||t.min===T.m0){if(T.snapped)past.pop();mapSync(false);if(!T.moved&&t)select(t.id,false);return}
   S.example=false;save();refresh();logEvent('info',`${t.title}: journey set to ${fmt(t.min)}`);
 }
